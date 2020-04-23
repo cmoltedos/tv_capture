@@ -1,0 +1,5 @@
+pycrypto==2.6.1
+requests==2.23.0
+ujson==2.0.3
+PyQt5==5.9.2
+PyQt5-stubs==5.14.2.0
