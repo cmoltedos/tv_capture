@@ -24,71 +24,51 @@ class DownloadStreamProgress(QtCore.QThread):
     def stop(self):
         self._isRunning = False
 
-
-class ProgramStreamWidget(QtWidgets.QVBoxLayout):
-
+class GenericStreamWidget(QtWidgets.QVBoxLayout):
     def __init__(self, folder, status_bar):
-        super(ProgramStreamWidget, self).__init__()
+        super(GenericStreamWidget, self).__init__()
         self.stream = None
         self.quality = None
         self.working_folder = folder
         self.status_bar = status_bar
 
-    def create_tab_program_layout(self):
-        group = QtWidgets.QGroupBox("Chapter to download URL:")
+    def create_layout(self):
+        group = QtWidgets.QGroupBox()
         layout = QtWidgets.QFormLayout()
-        self.program_url = QtWidgets.QTextEdit()
-        self.program_url.textChanged.connect(self.set_program_quality)
-        layout.addRow(self.program_url)
         quality_label = QtWidgets.QLabel('Video quality:')
-        self.program_quality = QtWidgets.QComboBox()
-        self.program_quality.currentTextChanged.connect(self.set_quality)
-        layout.addRow(quality_label, self.program_quality)
+        self.quality = QtWidgets.QComboBox()
+        layout.addRow(quality_label, self.quality)
         group.setLayout(layout)
         self.addWidget(group)
 
+        self.create_download_common_layout('Start button', 'Stop button')
+
+        return "Generic Class"
+
+    def create_download_common_layout(self, start_name, stop_name):
         grid = QtWidgets.QGridLayout()
-        self.program_start_download_button = QtWidgets.QPushButton(
-            'Start Download')
-        self.program_start_download_button.setEnabled(False)
-        self.program_start_download_button.clicked.connect(
+        self.start_download_button = QtWidgets.QPushButton(start_name)
+        self.start_download_button.setEnabled(False)
+        self.start_download_button.clicked.connect(
             self.start_stream_download)
-        grid.addWidget(self.program_start_download_button, 1, 1)
-        self.program_stop_download_button = QtWidgets.QPushButton(
-            'Stop Download')
-        self.program_stop_download_button.setEnabled(False)
-        self.program_stop_download_button.clicked.connect(
+        grid.addWidget(self.start_download_button, 1, 1)
+        self.stop_download_button = QtWidgets.QPushButton(stop_name)
+        self.stop_download_button.setEnabled(False)
+        self.stop_download_button.clicked.connect(
             self.finish_stream_download)
-        grid.addWidget(self.program_stop_download_button, 1, 2)
+        grid.addWidget(self.stop_download_button, 1, 2)
         self.addLayout(grid)
 
         self.pbar = QtWidgets.QProgressBar()
-        self.pbar.setGeometry(30, 40, 200, 10)
+        self.pbar.setGeometry(30, 40, 200, 30)
         self.addWidget(self.pbar)
-
-        return "Program Downloader"
-
-    def set_quality(self):
-        quality = self.program_quality.currentText()
-        self.quality = quality
-
-    def set_program_quality(self):
-        link = self.program_url.toPlainText()
-        try:
-            self.stream = streamer.Stream(link=link)
-        except IOError:
-            self.program_start_download_button.setEnabled(False)
-            return None
-        qualities = self.stream.get_available_resolution()
-        self.program_quality.clear()
-        self.program_quality.addItems(qualities)
-        self.program_start_download_button.setEnabled(True)
+        return None
 
     def start_stream_download(self):
-        self.program_start_download_button.setEnabled(False)
-        self.program_stop_download_button.setEnabled(True)
+        self.start_download_button.setEnabled(False)
+        self.stop_download_button.setEnabled(True)
         progress = self.stream.store_n_seconds(
-            seconds=1, resolution=self.quality,
+            seconds=1, resolution=self.quality.currentText(),
             folder=self.working_folder.text()
         )
         self.progress = DownloadStreamProgress(progress)
@@ -98,8 +78,8 @@ class ProgramStreamWidget(QtWidgets.QVBoxLayout):
 
     def finish_stream_download(self):
         self.progress.stop()
-        self.program_start_download_button.setEnabled(True)
-        self.program_stop_download_button.setEnabled(False)
+        self.start_download_button.setEnabled(True)
+        self.stop_download_button.setEnabled(False)
         self.pbar.setValue(0)
         self.status_bar.showMessage('Finish')
 
@@ -109,6 +89,96 @@ class ProgramStreamWidget(QtWidgets.QVBoxLayout):
             self.finish_stream_download()
         else:
             self.pbar.setValue(value)
+
+
+
+class ProgramStreamWidget(GenericStreamWidget):
+
+    def create_layout(self):
+        group = QtWidgets.QGroupBox("Chapter to download URL:")
+        layout = QtWidgets.QFormLayout()
+        self.program_url = QtWidgets.QTextEdit()
+        self.program_url.textChanged.connect(self.get_available_qualities)
+        layout.addRow(self.program_url)
+        quality_label = QtWidgets.QLabel('Video quality:')
+        self.quality = QtWidgets.QComboBox()
+        layout.addRow(quality_label, self.quality)
+        group.setLayout(layout)
+        self.addWidget(group)
+
+        self.create_download_common_layout('Start Download', 'Stop Download')
+
+        return "Program Downloader"
+
+    def get_available_qualities(self):
+        link = self.program_url.toPlainText()
+        try:
+            self.stream = streamer.Stream(link=link)
+        except IOError:
+            self.start_download_button.setEnabled(False)
+            return None
+        qualities = self.stream.get_available_resolution()
+        self.quality.clear()
+        self.quality.addItems(qualities)
+        self.start_download_button.setEnabled(True)
+
+
+class LiveStreamWidget(GenericStreamWidget):
+
+    def create_layout(self):
+        group = QtWidgets.QGroupBox("Chapter to download URL:")
+        layout = QtWidgets.QFormLayout()
+        self.program_url = QtWidgets.QTextEdit()
+        self.program_url.textChanged.connect(self.get_available_qualities)
+        layout.addRow(self.program_url)
+
+        group = QtWidgets.QGroupBox("Channel to record:")
+        options_layout = QtWidgets.QHBoxLayout()
+        option = QtWidgets.QRadioButton("13")
+        option.toggled.connect(lambda:self.get_available_qualities(option))
+        options_layout.addWidget(option)
+        option = QtWidgets.QRadioButton("Mega")
+        option.toggled.connect(lambda:self.get_available_qualities(option))
+        options_layout.addWidget(option)
+        option = QtWidgets.QRadioButton("CHV")
+        option.toggled.connect(lambda:self.get_available_qualities(option))
+        options_layout.addWidget(option)
+        option = QtWidgets.QRadioButton("TVN")
+        option.toggled.connect(lambda:self.get_available_qualities(option))
+        options_layout.addWidget(option)
+
+        quality_layout = QtWidgets.QHBoxLayout()
+        quality_label = QtWidgets.QLabel('Video quality:')
+        self.quality = QtWidgets.QComboBox()
+        quality_layout.addWidget(quality_label)
+        quality_layout.addWidget(self.quality)
+        quality_layout.addStretch(1)
+
+        layout = QtWidgets.QVBoxLayout()
+        layout.addLayout(options_layout)
+        layout.addLayout(quality_layout)
+        group.setLayout(layout)
+        self.addWidget(group)
+
+        self.create_download_common_layout('Start Recording', 'Stop Recording')
+
+        return "Live TV Recorder"
+
+    def get_available_qualities(self, radio_button):
+        if radio_button.isChecked():
+            channel = radio_button.text().lower()
+        else:
+            channel = None
+        try:
+            self.stream = streamer.Stream(channel=channel)
+        except IOError:
+            self.start_download_button.setEnabled(False)
+            return None
+        qualities = self.stream.get_available_resolution()
+        self.quality.clear()
+        self.quality.addItems(qualities)
+        self.start_download_button.setEnabled(True)
+
 
 
 class MyTableWidget(QtWidgets.QWidget):
@@ -134,12 +204,13 @@ class MyTableWidget(QtWidgets.QWidget):
 
         # Create tab
         program_element = ProgramStreamWidget(self.working_folder, parent.status_bar)
-        tab_name = program_element.create_tab_program_layout()
+        tab_name = program_element.create_layout()
         self.tab1.setLayout(program_element)
         self.tabs.addTab(self.tab1, tab_name)
 
-        tab_layout, tab_name = self.create_tab_live_layout()
-        self.tab2.setLayout(tab_layout)
+        live_element = LiveStreamWidget(self.working_folder, parent.status_bar)
+        tab_name = live_element.create_layout()
+        self.tab2.setLayout(live_element)
         self.tabs.addTab(self.tab2, tab_name)
 
         # Add tabs to widget
@@ -166,31 +237,6 @@ class MyTableWidget(QtWidgets.QWidget):
     def _open_folder_dialog(self):
         directory = str(QtWidgets.QFileDialog.getExistingDirectory())
         self.working_folder.setText('{}'.format(directory))
-
-    def create_tab_live_layout(self):
-        tab_layout = QtWidgets.QVBoxLayout(self)
-
-        group = QtWidgets.QGroupBox("Channel to record:")
-        layout = QtWidgets.QFormLayout()
-        option = QtWidgets.QRadioButton("13")
-        layout.addRow(option)
-        option = QtWidgets.QRadioButton("Mega")
-        layout.addRow(option)
-        option = QtWidgets.QRadioButton("CHV")
-        layout.addRow(option)
-        option = QtWidgets.QRadioButton("TVN")
-        layout.addRow(option)
-
-        quality_label = QtWidgets.QLabel('Video quality:')
-        self.live_quality = QtWidgets.QComboBox()
-        layout.addRow(quality_label, self.live_quality)
-
-        group.setLayout(layout)
-        tab_layout.addWidget(group)
-
-        tab_layout.addWidget(QtWidgets.QPushButton('Start Record Job'))
-
-        return tab_layout, "Live TV Recorder"
 
 
 class App(QtWidgets.QMainWindow):

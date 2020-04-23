@@ -57,14 +57,17 @@ class Stream(object):
         self.rsession = self.create_request_session()
         self.token_function, live_link = self.channel_config()
         self.link = link if link else live_link
-        self.token = self.token_function()
-        if self.channel == '13':
-            self.links_by_resolution = self.get_13_init_urls_stream()
-        elif self.is_live:
-            self.config_data = self.get_stream_config_data()
-            self.links_by_resolution = self.get_init_urls_stream()
-        else:
-            self.links_by_resolution = self.get_init_urls_stream()
+        try:
+            self.token = self.token_function()
+            if self.channel == '13':
+                self.links_by_resolution = self.get_13_init_urls_stream()
+            elif self.is_live:
+                self.config_data = self.get_stream_config_data()
+                self.links_by_resolution = self.get_init_urls_stream()
+            else:
+                self.links_by_resolution = self.get_init_urls_stream()
+        except AttributeError:
+            self.links_by_resolution = {}
 
     def get_link_channel(self, link):
         if 'www.13.cl' in link:
