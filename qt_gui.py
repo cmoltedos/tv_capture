@@ -374,14 +374,34 @@ class App(QtWidgets.QMainWindow):
         width, height = 500, 200
         self.select_app_style(app)
         self.setWindowTitle(self.title)
+        app.setWindowIcon(QtGui.QIcon('logo.png'))
         self.resize(width, height)
         self.center()
         self.status_bar = self.statusBar()
+
+        menu = self.menuBar()
+        about = menu.addMenu("About")
+        about.addAction("Info")
+        about.triggered[QtWidgets.QAction].connect(self.processtrigger)
 
         self.table_widget = MyTableWidget(self)
         self.setCentralWidget(self.table_widget)
 
         self.show()
+
+    def processtrigger(self, q):
+        msg = QtWidgets.QMessageBox()
+        msg.setIcon(QtWidgets.QMessageBox.Information)
+
+        msg.setText("Created by")
+        msg.setInformativeText("César Moltedo\ncesar.moltedo@gmail.com\n24th of April 2020")
+        if os.path.exists('about.txt'):
+            with open('about.txt') as about_file:
+                about_detail = about_file.read()
+            msg.setWindowTitle("About information")
+            msg.setDetailedText(about_detail)
+        msg.setStandardButtons(QtWidgets.QMessageBox.Ok)
+        msg.exec_()
 
     def select_app_style(self, app):
         if platform.system() == 'Windows':
