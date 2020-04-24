@@ -52,7 +52,7 @@ class Stream(object):
 
     def __init__(self, channel=None, link=None):
         assert channel is not None or link is not None
-        self.channel = channel if channel else self.get_link_channel(link)
+        self.channel = channel if channel is not None else self.get_link_channel(link)
         self.is_live = True
         self.rsession = self.create_request_session()
         self.token_function, live_link = self.channel_config()
@@ -324,9 +324,9 @@ class Stream(object):
             pass
         yield 0
         while total_time < seconds:
-            time.sleep(batch_time * 0.8)
+            time.sleep(int(batch_time * 0.8))
             ts_urls, sec_each, key_uri = self.get_streaming_file_list(resolution)
-            total_ts = len(ts_urls)
+            total_ts = len(set(ts_urls) - consume_ts_urls)
             batch_time = total_ts * sec_each
             print(f"[INFO] Downloading {total_ts} video sections")
             for i, ts_url in enumerate(ts_urls):
@@ -342,9 +342,11 @@ class Stream(object):
 
                 advance_time_percentage = int(total_time / seconds *100)
                 advance_ts_percentaje = int((i+1) / total_ts * 100)
-                if self.is_live and advance_time_percentage > prev_advance_time_percentage:
+                if self.is_live and seconds == float('inf'):
+                    yield total_time
+                elif self.is_live and advance_time_percentage > prev_advance_time_percentage:
                     prev_advance_time_percentage = advance_time_percentage
-                    print(f'[INFO] {total_time/60} seconds recorded')
+                    print(f'[INFO] {round(total_time/60, 2)} minutes recorded')
                     yield advance_time_percentage
                 elif not self.is_live and advance_ts_percentaje > prev_advance_ts_percentaje:
                     prev_advance_ts_percentaje = advance_ts_percentaje
@@ -352,6 +354,7 @@ class Stream(object):
                     yield advance_ts_percentaje
             if not self.is_live:
                 break
+
         yield 100
 
     def create_request_session(self):
