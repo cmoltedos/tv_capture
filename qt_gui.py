@@ -335,8 +335,8 @@ class MyTableWidget(QtWidgets.QWidget):
         tab_name2 = live_element.create_layout()
         self.tab2.setLayout(live_element)
 
-        self.tabs.addTab(self.tab2, tab_name2)
         self.tabs.addTab(self.tab1, tab_name1)
+        self.tabs.addTab(self.tab2, tab_name2)
 
         # Add tabs to widget
         self.layout.addWidget(self.tabs)
@@ -356,11 +356,18 @@ class MyTableWidget(QtWidgets.QWidget):
         self.working_folder.setGeometry(QtCore.QRect(10, 10, 191, 20))
         self.working_folder.setObjectName("FolderName")
         self.working_folder.setFixedWidth(400)
-        self.working_folder.setText(os.getcwd())
+        if os.path.exists('working_folder.txt'):
+            with open('working_folder.txt') as folder_file:
+                folder = folder_file.read()
+        else:
+            folder = os.getcwd()
+        self.working_folder.setText(folder)
         return None
 
     def _open_folder_dialog(self):
         directory = str(QtWidgets.QFileDialog.getExistingDirectory())
+        with open('working_folder.txt', 'w') as folder_file:
+            folder_file.write(directory)
         self.working_folder.setText('{}'.format(directory))
 
 
