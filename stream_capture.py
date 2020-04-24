@@ -327,7 +327,8 @@ class Stream(object):
             time.sleep(int(batch_time * 0.8))
             ts_urls, sec_each, key_uri = self.get_streaming_file_list(resolution)
             total_ts = len(set(ts_urls) - consume_ts_urls)
-            batch_time = total_ts * sec_each
+            if batch_time == 0:
+                batch_time = total_ts * sec_each
             print(f"[INFO] Downloading {total_ts} video sections")
             for i, ts_url in enumerate(ts_urls):
                 if ts_url in consume_ts_urls:

@@ -214,18 +214,18 @@ class LiveStreamWidget(GenericStreamWidget):
         quality_layout.addStretch(1)
 
         schedule_box_layout = QtWidgets.QHBoxLayout()
-        self.schedule_box = QtWidgets.QCheckBox("Schedule a recording period")
+        self.schedule_box = QtWidgets.QCheckBox("Schedule recording time")
         schedule_box_layout.addWidget(self.schedule_box)
 
         schedule_period_layout = QtWidgets.QHBoxLayout()
-        hour_init = QtWidgets.QComboBox()
-        hour_init.addItems(list(map(lambda x: '%.2d' % x, range(24))))
-        minute_init = QtWidgets.QComboBox()
-        minute_init.addItems(list(map(lambda x: '%.2d' % x, range(0,60,5))))
-        hour_end = QtWidgets.QComboBox()
-        hour_end.addItems(list(map(lambda x: '%.2d' % x, range(24))))
-        minute_end = QtWidgets.QComboBox()
-        minute_end.addItems(list(map(lambda x: '%.2d' % x, range(0, 60, 5))))
+        hour_init = QtWidgets.QSpinBox()
+        hour_init.setRange(0,23)
+        minute_init = QtWidgets.QSpinBox()
+        minute_init.setRange(0,59)
+        hour_end = QtWidgets.QSpinBox()
+        hour_end.setRange(0,23)
+        minute_end = QtWidgets.QSpinBox()
+        minute_end.setRange(0,59)
         self.time_boxes = [hour_init, minute_init, hour_end, minute_end]
         self.schedule_box.toggled.connect(self.schedule_box_option_state)
         self.schedule_box_option_state()
@@ -268,15 +268,15 @@ class LiveStreamWidget(GenericStreamWidget):
             actual_time_in_minutes = hour_to_minutes(
                 actual_datetime.hour, actual_datetime.minute)
             init_time_in_minutes = hour_to_minutes(
-                int(self.time_boxes[0].currentText()),
-                int(self.time_boxes[1].currentText())
+                int(self.time_boxes[0].value()),
+                int(self.time_boxes[1].value())
             )
             end_time_in_minutes = hour_to_minutes(
-                int(self.time_boxes[2].currentText()),
-                int(self.time_boxes[3].currentText())
+                int(self.time_boxes[2].value()),
+                int(self.time_boxes[3].value())
             )
             if init_time_in_minutes < actual_time_in_minutes:
-                return False
+                init_time_in_minutes = actual_time_in_minutes
             if init_time_in_minutes > end_time_in_minutes:
                 end_time_in_minutes += 24*60
             self.seconds = (end_time_in_minutes - init_time_in_minutes)*60
