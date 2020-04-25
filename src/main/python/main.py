@@ -377,12 +377,11 @@ class App(ApplicationContext):
     def run(self):
         window = QtWidgets.QMainWindow()
         self.title = 'TV Consumer'
-        self.left = 0
-        self.top = 0
         width, height = 500, 200
         self.select_app_style(self)
         window.setWindowTitle(self.title)
-        window.setWindowIcon(QtGui.QIcon(self.get_resource('logo.png')))
+        logo_route = self.get_resource('logo.png')
+        self.app.setWindowIcon(QtGui.QIcon(logo_route))
         window.resize(width, height)
         self.center(window)
         status_bar = window.statusBar()
