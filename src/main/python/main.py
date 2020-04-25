@@ -402,10 +402,10 @@ class App(ApplicationContext):
         msg.setIcon(QtWidgets.QMessageBox.Information)
 
         msg.setText("Created by")
-        msg.setInformativeText("César Moltedo\ncesar.moltedo@gmail.com\n24th of April 2020")
+        msg.setInformativeText("César Moltedo S\ncesar.moltedo@gmail.com\t\t\t\n24th of April 2020")
         about_location = self.get_resource('about.txt')
         if os.path.exists(about_location):
-            with open(about_location) as about_file:
+            with open(about_location, encoding="utf-8") as about_file:
                 about_detail = about_file.read()
             msg.setWindowTitle("About information")
             msg.setDetailedText(about_detail)
