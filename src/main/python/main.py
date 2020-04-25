@@ -4,6 +4,7 @@ import datetime, time
 import PyQt5.QtWidgets as QtWidgets
 import PyQt5.QtCore as QtCore
 import PyQt5.QtGui as QtGui
+from fbs_runtime.application_context.PyQt5 import ApplicationContext
 from pdb import set_trace
 
 import stream_capture as streamer
@@ -307,7 +308,7 @@ class LiveStreamWidget(GenericStreamWidget):
 
 class MyTableWidget(QtWidgets.QWidget):
 
-    def __init__(self, parent):
+    def __init__(self, parent, status_bar):
         super(MyTableWidget, self).__init__(parent)
         self.layout = QtWidgets.QVBoxLayout()
 
@@ -327,11 +328,11 @@ class MyTableWidget(QtWidgets.QWidget):
         self.tabs.resize(300, 200)
 
         # Create tabs
-        program_element = ProgramStreamWidget(self.working_folder, parent.status_bar)
+        program_element = ProgramStreamWidget(self.working_folder, status_bar)
         tab_name1 = program_element.create_layout()
         self.tab1.setLayout(program_element)
 
-        live_element = LiveStreamWidget(self.working_folder, parent.status_bar)
+        live_element = LiveStreamWidget(self.working_folder, status_bar)
         tab_name2 = live_element.create_layout()
         self.tab2.setLayout(live_element)
 
@@ -371,30 +372,31 @@ class MyTableWidget(QtWidgets.QWidget):
         self.working_folder.setText('{}'.format(directory))
 
 
-class App(QtWidgets.QMainWindow):
+class App(ApplicationContext):
 
-    def __init__(self, app):
-        super().__init__()
+    def run(self):
+        window = QtWidgets.QMainWindow()
         self.title = 'TV Consumer'
         self.left = 0
         self.top = 0
         width, height = 500, 200
-        self.select_app_style(app)
-        self.setWindowTitle(self.title)
-        app.setWindowIcon(QtGui.QIcon('logo.png'))
-        self.resize(width, height)
-        self.center()
-        self.status_bar = self.statusBar()
+        self.select_app_style(self)
+        window.setWindowTitle(self.title)
+        window.setWindowIcon(QtGui.QIcon(self.get_resource('logo.png')))
+        window.resize(width, height)
+        self.center(window)
+        status_bar = window.statusBar()
 
-        menu = self.menuBar()
+        menu = window.menuBar()
         about = menu.addMenu("About")
         about.addAction("Info")
         about.triggered[QtWidgets.QAction].connect(self.processtrigger)
 
-        self.table_widget = MyTableWidget(self)
-        self.setCentralWidget(self.table_widget)
+        self.table_widget = MyTableWidget(window, status_bar)
+        window.setCentralWidget(self.table_widget)
 
-        self.show()
+        window.show()
+        return self.app.exec_()
 
     def processtrigger(self, q):
         msg = QtWidgets.QMessageBox()
@@ -402,8 +404,9 @@ class App(QtWidgets.QMainWindow):
 
         msg.setText("Created by")
         msg.setInformativeText("César Moltedo\ncesar.moltedo@gmail.com\n24th of April 2020")
-        if os.path.exists('about.txt'):
-            with open('about.txt') as about_file:
+        about_location = self.get_resource('about.txt')
+        if os.path.exists(about_location):
+            with open(about_location) as about_file:
                 about_detail = about_file.read()
             msg.setWindowTitle("About information")
             msg.setDetailedText(about_detail)
@@ -412,24 +415,24 @@ class App(QtWidgets.QMainWindow):
 
     def select_app_style(self, app):
         if platform.system() == 'Windows':
-            app.setStyle('WindowsVista')
+            app.app.setStyle('WindowsVista')
         elif platform.system() == 'Darwin':
-            app.setStyle('Macintosh')
+            app.app.setStyle('Macintosh')
         else:
-            app.setStyle('Fusion')
+            app.app.setStyle('Fusion')
         return None
 
-    def center(self):
+    def center(self, window):
         # geometry of the main window
-        qr = self.frameGeometry()
+        qr = window.frameGeometry()
         # center point of screen
         cp = QtWidgets.QDesktopWidget().availableGeometry().center()
         # move rectangle's center point to screen's center point
         qr.moveCenter(cp)
         # top left of rectangle becomes top left of window centering it
-        self.move(qr.topLeft())
+        window.move(qr.topLeft())
 
 if __name__ == '__main__':
-    app = QtWidgets.QApplication(sys.argv)
-    ex = App(app)
-    sys.exit(app.exec_())
+    appctxt = App()  # 4. Instantiate the subclass
+    exit_code = appctxt.run()  # 5. Invoke run()
+    sys.exit(exit_code)
