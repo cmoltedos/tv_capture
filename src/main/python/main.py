@@ -432,6 +432,6 @@ class App(ApplicationContext):
         window.move(qr.topLeft())
 
 if __name__ == '__main__':
-    appctxt = App()  # 4. Instantiate the subclass
-    exit_code = appctxt.run()  # 5. Invoke run()
+    appctxt = App()
+    exit_code = appctxt.run()
     sys.exit(exit_code)
