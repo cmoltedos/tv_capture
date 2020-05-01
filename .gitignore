@@ -2,3 +2,5 @@ __pycache__
 .idea
 *.ts
 token_cache_*.txt
+src/main/resources/base/about.txt
+accounts

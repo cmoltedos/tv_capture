@@ -42,13 +42,14 @@ class DownloadStreamProgress(QtCore.QThread):
 
 
 class GenericStreamWidget(QtWidgets.QVBoxLayout):
-    def __init__(self, folder, status_bar):
+    def __init__(self, folder, status_bar, account_data_getter):
         super(GenericStreamWidget, self).__init__()
         self.stream = None
         self.quality = None
         self.seconds = 1
         self.working_folder = folder
         self.status_bar = status_bar
+        self.account_data_getter  =account_data_getter
 
     def create_layout(self):
         group = QtWidgets.QGroupBox()
@@ -179,7 +180,9 @@ class ProgramStreamWidget(GenericStreamWidget):
     def get_available_qualities(self):
         link = self.program_url.toPlainText()
         try:
-            self.stream = streamer.Stream(link=link)
+            account_data = self.account_data_getter()
+            self.stream = streamer.Stream(link=link,
+                                          account_data=account_data)
         except IOError:
             self.start_download_button.setEnabled(False)
             return None
@@ -305,6 +308,100 @@ class LiveStreamWidget(GenericStreamWidget):
         self.start_download_button.setEnabled(True)
 
 
+class AccontsWidget(QtWidgets.QVBoxLayout):
+
+    def __init__(self):
+        super(AccontsWidget, self).__init__()
+        self.accounts_data = list()
+        self.account_filename = 'accounts'
+        self.channels = ['13', 'Mega'] #, 'CHV', 'TVN']
+
+    def load_account_file(self):
+        if not os.path.exists(self.account_filename):
+            return None
+        with open(self.account_filename, 'r') as account_file:
+            data_text = account_file.read()
+            if not data_text:
+                return None
+            data = streamer.ujson.loads(data_text)
+        for key, value in data.items():
+            new_data = self.create_account()
+            new_data[1].setCurrentIndex(self.channels.index(key))
+            new_data[2].setText(value[0])
+            new_data[3].setText(value[1])
+        return None
+
+    def create_layout(self):
+        group = QtWidgets.QGroupBox("Accounts:")
+        self.accounts_boxes = QtWidgets.QVBoxLayout()
+        group.setLayout(self.accounts_boxes)
+        self.addWidget(group)
+
+        self.create_action_button_layout('Add account', 'Delete selected accounts')
+
+        self.load_account_file()
+        return "Accounts Manager"
+
+    def get_account_data(self, lowercase=True):
+        accounts_dict = dict()
+        for row in self.accounts_data:
+            key = row[1].currentText()
+            if lowercase:
+                key = key.lower()
+            values = [row[2].text(), row[3].text()]
+            accounts_dict[key] = values
+        return accounts_dict
+
+    def update_account_file(self):
+        accounts_dict = self.get_account_data(lowercase=False)
+        with open(self.account_filename, 'w') as accounts_file:
+            accounts_file.write(streamer.ujson.dumps(accounts_dict))
+        return None
+
+    def create_account(self):
+        hboxes = QtWidgets.QHBoxLayout()
+        checkbox = QtWidgets.QCheckBox()
+        channels = QtWidgets.QComboBox()
+        channels.addItems(self.channels)
+        channels.currentIndexChanged.connect(self.update_account_file)
+        username = QtWidgets.QLineEdit()
+        username.setPlaceholderText('username')
+        username.textChanged.connect(self.update_account_file)
+        password = QtWidgets.QLineEdit()
+        password.setPlaceholderText('password')
+        password.setEchoMode(QtWidgets.QLineEdit.Password)
+        password.textChanged.connect(self.update_account_file)
+        data = [checkbox, channels, username, password]
+        self.accounts_data.append(data)
+        for element in data:
+            hboxes.addWidget(element)
+        self.accounts_boxes.addLayout(hboxes)
+        return data
+
+    def delete_accounts(self):
+        i = 0
+        while i < self.accounts_boxes.count():
+            if self.accounts_data[i][0].isChecked():
+                hbox = self.accounts_boxes.itemAt(i)
+                self.accounts_boxes.removeItem(hbox)
+                for element in self.accounts_data[i]:
+                    element.deleteLater()
+                del self.accounts_data[i]
+            else:
+                i += 1
+        self.update_account_file()
+        return None
+
+    def create_action_button_layout(self, button1, button2):
+        grid = QtWidgets.QGridLayout()
+        self.create_button = QtWidgets.QPushButton(button1)
+        self.create_button.clicked.connect(self.create_account)
+        grid.addWidget(self.create_button, 1, 1)
+        self.delete_button = QtWidgets.QPushButton(button2)
+        self.delete_button.clicked.connect(self.delete_accounts)
+        grid.addWidget(self.delete_button, 1, 2)
+        self.addLayout(grid)
+        return None
 
 class MyTableWidget(QtWidgets.QWidget):
 
@@ -325,19 +422,28 @@ class MyTableWidget(QtWidgets.QWidget):
         self.tabs = QtWidgets.QTabWidget()
         self.tab1 = QtWidgets.QWidget()
         self.tab2 = QtWidgets.QWidget()
+        self.tab3 = QtWidgets.QWidget()
         self.tabs.resize(300, 200)
 
         # Create tabs
-        program_element = ProgramStreamWidget(self.working_folder, status_bar)
+        accounts_element = AccontsWidget()
+        tab_name3 = accounts_element.create_layout()
+        self.tab3.setLayout(accounts_element)
+        account_data_getter = accounts_element.get_account_data
+
+        program_element = ProgramStreamWidget(self.working_folder, status_bar,
+                                              account_data_getter)
         tab_name1 = program_element.create_layout()
         self.tab1.setLayout(program_element)
 
-        live_element = LiveStreamWidget(self.working_folder, status_bar)
+        live_element = LiveStreamWidget(self.working_folder, status_bar,
+                                        account_data_getter)
         tab_name2 = live_element.create_layout()
         self.tab2.setLayout(live_element)
 
         self.tabs.addTab(self.tab1, tab_name1)
         self.tabs.addTab(self.tab2, tab_name2)
+        self.tabs.addTab(self.tab3, tab_name3)
 
         # Add tabs to widget
         self.layout.addWidget(self.tabs)

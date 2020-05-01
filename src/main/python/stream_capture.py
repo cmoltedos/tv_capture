@@ -4,6 +4,7 @@ import datetime
 import re
 import time
 import ujson
+from Crypto.Cipher import AES
 from optparse import OptionParser
 from pdb import set_trace
 
@@ -40,7 +41,6 @@ def canal_13_token_decrypt(token_encripted):
 
 
 def decrypt_ts_files(content, key_uri):
-    from Crypto.Cipher import AES
     key = requests.get(url=key_uri)
     key_content = key.content
     decipher = AES.new(key_content, AES.MODE_CBC, b'0'*16)
@@ -50,21 +50,22 @@ def decrypt_ts_files(content, key_uri):
 
 class Stream(object):
 
-    def __init__(self, channel=None, link=None):
+    def __init__(self, channel=None, link=None, account_data=None):
         assert channel is not None or link is not None
         self.channel = channel if channel is not None else self.get_link_channel(link)
         self.is_live = True
+        self.login_required = False
         self.rsession = self.create_request_session()
-        self.token_function, live_link = self.channel_config()
+        self.token_function, live_link, login_function = self.channel_config()
         self.link = link if link else live_link
         try:
             self.token = self.token_function()
+            if account_data and self.channel in account_data:
+                login_function(*account_data[self.channel])
             if self.channel == '13':
                 self.links_by_resolution = self.get_13_init_urls_stream()
-            elif self.is_live:
-                self.config_data = self.get_stream_config_data()
-                self.links_by_resolution = self.get_init_urls_stream()
             else:
+                self.config_data = self.get_stream_config_data()
                 self.links_by_resolution = self.get_init_urls_stream()
         except AttributeError:
             self.links_by_resolution = {}
@@ -82,10 +83,18 @@ class Stream(object):
 
     def channel_config(self):
         channel_config = {
-            'tvn': (self.get_token_tvn, '57a498c4d7b86d600e5461cb'),
-            'mega': (self.get_token_mega, 'https://www.mega.cl/senal-en-vivo/'),
-            '13': (self.get_token_13, 'https://www.13.cl/en-vivo'),
-            'chv': (self.get_token_chv, 'https://www.chilevision.cl/senal-online')
+            'tvn': (self.get_token_tvn,
+                    '57a498c4d7b86d600e5461cb',
+                    lambda x, y: None),
+            'mega': (self.get_token_mega,
+                     'https://www.mega.cl/senal-en-vivo/',
+                     self.login_mega),
+            '13': (self.get_token_13,
+                   'https://www.13.cl/en-vivo',
+                   self.login_13),
+            'chv': (self.get_token_chv,
+                    'https://www.chilevision.cl/senal-online',
+                    lambda x, y: None)
         }
         if self.channel not in channel_config:
             raise IOError('Channel not supported')
@@ -151,7 +160,6 @@ class Stream(object):
             self.is_live = True
         else:
             self.is_live = False
-            return None
         token_cache_filename = f'token_cache_{self.channel}_{self.channel_id}.txt'
 
         if not ommit_cache and os.path.exists(token_cache_filename):
@@ -239,22 +247,29 @@ class Stream(object):
         return config_data
 
     def get_init_urls_stream(self):
+        params = {
+            'uid': self.config_data['unique_id'],
+            'sid': self.config_data['session_id'],
+            'pid': self.config_data['playback_id'],
+            'av': self.config_data['version'],
+            'access_token': self.token,
+            'an': 'screen', 'at': 'web-app', 'ref': '',
+            'res': '1280x720', 'dnt': 'true'
+        }
         if self.is_live:
             url = f'https://mdstrm.com/live-stream-playlist/{self.channel_id}.m3u8'
-            params = {
-                'uid': self.config_data['unique_id'],
-                'sid': self.config_data['session_id'],
-                'pid': self.config_data['playback_id'],
-                'av': self.config_data['version'],
-                'access_token': self.token,
-                'an': 'screen', 'at': 'web-app',  'ref': '',
-                'res': '1280x720', 'dnt': 'true'
-            }
-            result = self.rsession.get(url=url, params=params).text
+            response = self.rsession.get(url=url, params=params)
+            result = response.text
         else:
             url = f'https://mdstrm.com/video/{self.channel_id}.m3u8'
-            result = self.rsession.get(url=url).text
-
+            response = self.rsession.get(url=url)
+            if response.status_code == 401:
+                print("[INFO] Login required")
+                self.login_required = True
+                headers = {'User-Agent': USER_AGENT}
+                response = self.rsession.get(url=url, params=params,
+                                             headers=headers)
+            result = response.text
         links_by_resolution = dict(re.findall("RESOLUTION=[0-9]{3,4}x([0-9]{3,4}).*?\n([a-zA-Z0-9:/\-\.&?=_%]+)", result, re.DOTALL))
         resolutions = sorted(links_by_resolution.keys(), key=lambda x: int(x))
         print(f"[INFO] Available resolutions: {resolutions}")
@@ -295,11 +310,13 @@ class Stream(object):
         if self.channel == 'mega' and self.is_live:
             origin = 'https://www.mega.cl'
             headers = {'Origin': origin, 'User-Agent': USER_AGENT}
+        elif self.login_required:
+            headers = {'User-Agent': USER_AGENT}
         else:
             headers = {}
         result = self.rsession.get(url=link_by_resolution, headers=headers)
         if result.status_code != 200:
-            raise ConnectionError(f"Error retrieving data for {link_by_resolution}")
+            raise ConnectionError(f"Error retrieving ({result.status_code}) data for {link_by_resolution}")
         result_content = result.text
         duration_sec = int(re.search("^.*?TARGETDURATION:(\d*)", result_content, re.DOTALL).group(1))
         encrypt_data = re.search("^.*?EXT-X-KEY:(.*?)\n", result_content, re.DOTALL)
@@ -335,7 +352,11 @@ class Stream(object):
                     continue
                 consume_ts_urls.add(ts_url)
                 total_time += sec_each
-                content = self.rsession.get(url=ts_url).content
+                if self.login_required:
+                    headers = {'User-Agent': USER_AGENT}
+                else:
+                    headers = {}
+                content = self.rsession.get(url=ts_url, headers=headers).content
                 if key_uri:
                     content = decrypt_ts_files(content, key_uri)
                 with open(result_route, 'ab') as result_file:
@@ -357,6 +378,42 @@ class Stream(object):
                 break
 
         yield 100
+
+    def login_13(self, username, password):
+        login_url = 'https://login.13.cl/user/login'
+        params = {
+            "name": username, "pass": password, "form_id": "user_login"
+        }
+        response = self.rsession.post(url=login_url, data=params)
+        check_elements = re.search("postMessage\(\'(.*?)\'", response.text, re.DOTALL)
+        check_code = check_elements.group(1).split('|')[-2]
+        check_url = f'https://www.13.cl/login13/check/{check_code}'
+        response2 = self.rsession.post(url=check_url)
+        return None
+
+    def login_mega(self, username, password):
+        params = {
+            'client_id': 'mga-web', 'response_type': 'code', 'scope': 'openid',
+            'redirect_uri': self.link
+        }
+        login_form_url = 'https://sso.mega.cl/auth/realms/megamedia/protocol/openid-connect/auth'
+        response = self.rsession.get(url=login_form_url, params=params)
+
+        login_url = re.search("form id=\"kc-form-login\".*?action=\"(.*?)\"", response.text, re.DOTALL).group(1)
+        login_url = login_url.replace('&amp;', '&')
+        data_form = {
+            "username": username, "password": password
+        }
+        response2 = self.rsession.post(url=login_url, data=data_form)
+        sso_token_url = 'https://sso.mega.cl/auth/realms/megamedia/protocol/openid-connect/token'
+        data_form2 = {
+            'code': response2.url.split('code=')[-1],
+            'grant_type': 'authorization_code',
+            'client_id': params['client_id'],
+            'redirect_uri': params['redirect_uri']
+        }
+        response3 = self.rsession.post(url=sso_token_url, data=data_form2)
+        return None
 
     def create_request_session(self):
         rsession = requests.session()
@@ -474,13 +531,11 @@ class MegaPrograms(object):
 def do_work(opt):
     # stream = MegaPrograms()
     # programs = stream.get_programs()
-    link = 'https://www.chilevision.cl/la-divina-comida/capitulos/la-divina-comida-capitulo-2'
+    link = 'https://www.mega.cl/teleseries/verdadesocultas/capitulos/103278-verdades-ocultas-capitulo-700-el-velorio-de-marco-capitulos-completos-online-mega.html'
     stream = Stream(link=link)
     # stream = Stream(channel=opt.channel.lower())
     resolution = str(input(f'Insert a resolution: '))
     [i for i in stream.store_n_seconds(resolution=resolution)]
-
-
 
 
 if __name__ == '__main__':
