@@ -271,6 +271,13 @@ class Stream(object):
                                              headers=headers)
             result = response.text
         links_by_resolution = dict(re.findall("RESOLUTION=[0-9]{3,4}x([0-9]{3,4}).*?\n([a-zA-Z0-9:/\-\.&?=_%]+)", result, re.DOTALL))
+
+        for resolution, link in links_by_resolution.items():
+            if link.startswith('http'):
+                break
+            link_server = re.search("&es=(.*?)&", link, re.DOTALL).group(1)
+            links_by_resolution[resolution] = f'https://{link_server}{link}'
+
         resolutions = sorted(links_by_resolution.keys(), key=lambda x: int(x))
         print(f"[INFO] Available resolutions: {resolutions}")
         return links_by_resolution
@@ -531,7 +538,7 @@ class MegaPrograms(object):
 def do_work(opt):
     # stream = MegaPrograms()
     # programs = stream.get_programs()
-    link = 'https://www.mega.cl/teleseries/verdadesocultas/capitulos/103278-verdades-ocultas-capitulo-700-el-velorio-de-marco-capitulos-completos-online-mega.html'
+    link = 'https://www.13.cl/programas/masterchef-celebrity/capitulos/masterchef-celebrity-chile-capitulo-16-dulce-reto'
     stream = Stream(link=link)
     # stream = Stream(channel=opt.channel.lower())
     resolution = str(input(f'Insert a resolution: '))
